@@ -2,6 +2,7 @@ use std::convert::TryInto;
 use std::fmt;
 use std::fs::File;
 use std::time::Instant;
+use std::usize::MAX;
 use criterion::measurement::WallTime;
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkGroup, Criterion};
 use rand::distributions::{Distribution, Standard};
@@ -496,11 +497,12 @@ fn rs_reconstruct_benchmark(
 fn speed_optimized_benchmarks(c: &mut Criterion) {
     let transfer_length: usize = 1024 * MB;
     let max_source_block_number = u8::MAX as usize;
-
+    const MAX_TRANSFER_LENGTH: usize = 0xFFFFFFFFFFFF; // 48 bits max
+    let K = 1024;
     // 定义独立的参数候选项
-    let encoding_symbol_length_options = [1 * MB, 2 * MB, 4 * MB, 8 * MB, 16 * MB];
-    let max_source_block_length_options = [8, 16, 32, 64, 128];
-    let max_number_of_parity_symbols_options = [2, 4, 8, 16, 32];
+    let encoding_symbol_length_options = [10 * K, 20 * K, 30 * K, 40 * K, 50 * K]; // u16
+    let max_source_block_length_options = [8, 16, 32, 64, 128]; // u32
+    let max_number_of_parity_symbols_options = [2, 4, 8, 16, 32]; // u8 / u16
 
     // 生成所有可能的组合
     let mut speed_combinations = Vec::new();
@@ -513,12 +515,14 @@ fn speed_optimized_benchmarks(c: &mut Criterion) {
                     let block_size = sym_len * src_blk;
                     let size = block_size * max_source_block_number;
                     let mut max_transfer_length = size;
-                    if size > transfer_length {
-                        max_transfer_length = transfer_length;
+                    if size > MAX_TRANSFER_LENGTH {
+                        max_transfer_length = MAX_TRANSFER_LENGTH;
                     }
-                    if transfer_length < max_transfer_length {
+                    if transfer_length <= max_transfer_length {
                         speed_combinations.push((sym_len, src_blk, parity));
                     }
+                    println!("sym_len={}k, src_blk={}, parity={}, max_transfer_length={}, transfer_length={}, max_source_block_number={}",
+                             sym_len / 1024, src_blk, parity, max_transfer_length, transfer_length, max_source_block_number);
                 }
             }
         }
